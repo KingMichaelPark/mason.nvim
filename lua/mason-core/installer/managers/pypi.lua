@@ -9,10 +9,12 @@ local pep440 = require "mason-core.pep440"
 local platform = require "mason-core.platform"
 local providers = require "mason-core.providers"
 local semver = require "mason-core.semver"
+local settings = require "mason.settings"
 local spawn = require "mason-core.spawn"
 
 local M = {}
 
+local use_uv = settings.current.pip.use_uv
 local VENV_DIR = "venv"
 
 ---@async
@@ -20,11 +22,19 @@ local VENV_DIR = "venv"
 local function resolve_python3(candidates)
     local is_executable = _.compose(_.equals(1), vim.fn.executable)
     a.scheduler()
+    if use_uv then
+        candidates = { "uv" }
+    end
     local available_candidates = _.filter(is_executable, candidates)
     for __, candidate in ipairs(available_candidates) do
         ---@type string
         local version_output = spawn[candidate]({ "--version" }):map(_.prop "stdout"):get_or_else ""
-        local ok, version = pcall(semver.new, version_output:match "Python (3%.%d+.%d+)")
+        local ok, version
+        if use_uv then
+            ok, version = pcall(semver.new, version_output:match "uv (%d+.%d+.%d+)")
+        else
+            ok, version = pcall(semver.new, version_output:match "Python (3%.%d+.%d+)")
+        end
         if ok then
             return { executable = candidate, version = version }
         end
@@ -127,7 +137,14 @@ local function create_venv(pkg)
 
     log.fmt_debug("Found python3 installation version=%s, executable=%s", target.version, target.executable)
     ctx.stdio_sink.stdout "Creating virtual environment…\n"
-    return ctx.spawn[target.executable] { "-m", "venv", "--system-site-packages", VENV_DIR }
+
+    if use_uv then
+        log.fmt_debug("Found uv installation version=%s, executable=%s", target.version, target.executable)
+        return ctx.spawn[target.executable] { "venv", VENV_DIR }
+    else
+        log.fmt_debug("Found python3 installation version=%s, executable=%s", target.version, target.executable)
+        return ctx.spawn[target.executable] { "-m", "venv", "--system-site-packages", VENV_DIR }
+    end
 end
 
 ---@param ctx InstallContext
@@ -162,16 +179,29 @@ end
 ---@param pkgs string[]
 ---@param extra_args? string[]
 local function pip_install(pkgs, extra_args)
-    return venv_python {
-        "-m",
-        "pip",
-        "--disable-pip-version-check",
-        "install",
-        "--ignore-installed",
-        "-U",
-        extra_args or vim.NIL,
-        pkgs,
-    }
+    if use_uv then
+        local ctx = installer.context()
+        local task = ctx.spawn["uv"] {
+            "pip",
+            "install",
+            "-U",
+            extra_args or vim.NIL,
+            pkgs,
+        }
+        -- vim.api.nvim_set_current_dir(curdir)
+        return task
+    else
+        return venv_python {
+            "-m",
+            "pip",
+            "--disable-pip-version-check",
+            "install",
+            "--ignore-installed",
+            "-U",
+            extra_args or vim.NIL,
+            pkgs,
+        }
+    end
 end
 
 ---@async
@@ -185,7 +215,7 @@ function M.init(opts)
         ctx:promote_cwd()
         try(create_venv(opts.package))
 
-        if opts.upgrade_pip then
+        if opts.upgrade_pip and not use_uv then
             ctx.stdio_sink.stdout "Upgrading pip inside the virtual environment…\n"
             try(pip_install({ "pip" }, opts.install_extra_args))
         end
