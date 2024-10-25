@@ -15,12 +15,7 @@ local spawn = require "mason-core.spawn"
 local M = {}
 
 local use_uv = settings.current.pip.use_uv
-local VENV_DIR
-if use_uv then
-    VENV_DIR = ".venv"
-else
-    VENV_DIR = "venv"
-end
+VENV_DIR = "venv"
 
 ---@async
 ---@param candidates string[]
@@ -77,10 +72,10 @@ local function get_versioned_candidates(supported_python_versions)
         { semver.new "3.12.0", "python3.12" },
         { semver.new "3.11.0", "python3.11" },
         { semver.new "3.10.0", "python3.10" },
-        { semver.new "3.9.0", "python3.9" },
-        { semver.new "3.8.0", "python3.8" },
-        { semver.new "3.7.0", "python3.7" },
-        { semver.new "3.6.0", "python3.6" },
+        { semver.new "3.9.0",  "python3.9" },
+        { semver.new "3.8.0",  "python3.8" },
+        { semver.new "3.7.0",  "python3.7" },
+        { semver.new "3.6.0",  "python3.6" },
     })
 end
 
@@ -126,7 +121,8 @@ local function create_venv(pkg)
     then
         if ctx.opts.force then
             ctx.stdio_sink.stderr(
-                ("Warning: The resolved python3 version %s is not compatible with the required Python versions: %s.\n"):format(
+                ("Warning: The resolved python3 version %s is not compatible with the required Python versions: %s.\n")
+                :format(
                     target.version,
                     supported_python_versions
                 )
@@ -134,7 +130,8 @@ local function create_venv(pkg)
         else
             ctx.stdio_sink.stderr "Run with :MasonInstall --force to bypass this version validation.\n"
             return Result.failure(
-                ("Failed to find a python3 installation in PATH that meets the required versions (%s). Found version: %s."):format(
+                ("Failed to find a python3 installation in PATH that meets the required versions (%s). Found version: %s.")
+                :format(
                     supported_python_versions,
                     target.version
                 )
@@ -176,7 +173,7 @@ end
 local function venv_python(args)
     local ctx = installer.context()
     if use_uv then
-        return ctx.spawn[{ "uv", "venv" }](args)
+        return ctx.spawn["uv"](args)
     end
     return find_venv_executable(ctx, "python"):and_then(function(python_path)
         return ctx.spawn[path.concat { ctx.cwd:get(), python_path }](args)
@@ -188,16 +185,15 @@ end
 ---@param extra_args? string[]
 local function pip_install(pkgs, extra_args)
     if use_uv then
-        local ctx = installer.context()
-
-        local task = ctx.spawn["uv"] {
+        return venv_python {
             "pip",
             "install",
+            "--directory",
+            "venv",
             "-U",
             extra_args or vim.NIL,
             pkgs,
         }
-        return task
     else
         return venv_python {
             "-m",
