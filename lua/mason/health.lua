@@ -229,7 +229,7 @@ local function check_languages()
             }
             check {
                 cmd = "uv",
-                args = {},
+                args = { "--version" },
                 name = "uv",
                 relaxed = true,
                 advice = {
