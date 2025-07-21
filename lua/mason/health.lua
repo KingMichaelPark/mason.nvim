@@ -94,7 +94,7 @@ local function check_core_utils()
     check { name = "unzip", cmd = "unzip", args = { "-v" }, relaxed = true }
 
     -- wget is used interchangeably with curl, but with lower priority, so we mark wget as relaxed
-    check { cmd = "wget", args = { "--version" }, name = "wget", relaxed = true }
+    check { cmd = "wget", args = { "--help" }, name = "wget", relaxed = true }
     check { cmd = "curl", args = { "--version" }, name = "curl" }
     check {
         cmd = "gzip",
@@ -225,6 +225,19 @@ local function check_languages()
                     [[On Debian/Ubuntu systems, you need to install the python3-venv package using the following command:
 
     apt-get install python3-venv]],
+                },
+            }
+            check {
+                cmd = "uv",
+                args = {},
+                name = "uv",
+                relaxed = true,
+                advice = {
+                    [[`uv` not installed, if you want to use the `use_uv` argument
+                    in the pip section of the configuration, you must install it.
+
+                    https://docs.astral.sh/uv/getting-started/installation/
+                    ]],
                 },
             }
         end,
